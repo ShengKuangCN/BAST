@@ -1,9 +1,10 @@
 # BAST
 
-[BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization](https://arxiv.org/abs/2202.04996).
+[BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization]().
 ---
+## Architecture
 
-![BAST](https://github.com/ShengKuangCN/BAST/blob/main/figure/01.BAST_architecture.pdf)
+![BAST](https://github.com/ShengKuangCN/BAST/figure/01.BAST_architecture.pdf)
 
 ## Prerequisites
 
