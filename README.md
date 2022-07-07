@@ -4,7 +4,7 @@
 ---
 ## Architecture
 
-![BAST](https://github.com/ShengKuangCN/BAST/blob/main/figure/01.BAST_architecture.pdf)
+![BAST](https://github.com/ShengKuangCN/BAST/blob/main/figure/01.BAST_architecture.png)
 
 ## Prerequisites
 
