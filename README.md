@@ -1,6 +1,6 @@
 # BAST
 
-[BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization]().
+[BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization]()
 ---
 ## Architecture
 
