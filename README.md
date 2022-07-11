@@ -78,12 +78,12 @@ BAST-SP  | Hybrid | Sub. |2.03° | 0.002
 
 ## Citation
 
-  @misc{https://doi.org/10.48550/arxiv.2207.03927,
-    doi = {10.48550/ARXIV.2207.03927},
-    url = {https://arxiv.org/abs/2207.03927},
-    author = {Kuang, Sheng and van der Heijden, Kiki and Mehrkanoon, Siamak},
-    title = {BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization},
-    publisher = {arXiv},
-    year = {2022},
-    copyright = {Creative Commons Attribution Share Alike 4.0 International}
-  }
+    @misc{https://doi.org/10.48550/arxiv.2207.03927,
+      doi = {10.48550/ARXIV.2207.03927},
+      url = {https://arxiv.org/abs/2207.03927},
+      author = {Kuang, Sheng and van der Heijden, Kiki and Mehrkanoon, Siamak},
+      title = {BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization},
+      publisher = {arXiv},
+      year = {2022},
+      copyright = {Creative Commons Attribution Share Alike 4.0 International}
+    }
