@@ -1,20 +1,16 @@
-from network.BAST import BAST, AngularLossWithCartesianCoordinate, MixWithCartesianCoordinate
+from network.BAST import BAST_Variant, AngularLossWithCartesianCoordinate, MixWithCartesianCoordinate
 from utils import *
-import torch
-import torch.nn as nn
 from datetime import datetime
-import os
-import sys
 from conf import *
 import argparse
+import torch
+import torch.nn as nn
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-GPU_LIST = [0]
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-b", "--backbone", help="mamba/vanilla/swin")
 parser.add_argument("-i", "--integ", help="SUB/ADD/CONCAT")
-parser.add_argument("-l", "--loss", help="MSE/AD/MIN")
+parser.add_argument("-l", "--loss", help="MSE/AD/MIX")
 parser.add_argument("-s", "--shareweights", help="Share weights", type=bool, default=False)
 parser.add_argument("-e", "--env", help="RI/RI01/RI02")
 args = parser.parse_args()
@@ -23,6 +19,10 @@ BINAURAL_INTEGRATION = args.integ
 LOSS = args.loss
 SHARE_PARAMS = args.shareweights
 DATA_ENV = args.env
+MODEL_TYPE = args.backbone
+
+if 'SNR' in DATA_ENV:
+    LR = 0.001
 
 """Loading the training and BAST datasets"""
 print('\n[{}] Loading data...'.format(datetime.now()))
@@ -39,7 +39,7 @@ val_y = torch.Tensor(val_y)
 
 """Initializing the network"""
 print('\n[{}] Initializing the network...'.format(datetime.now()))
-net = BAST(
+net = BAST_Variant(
     image_size=SPECTROGRAM_SIZE,
     patch_size=PATCH_SIZE,
     patch_overlap=PATCH_OVERLAP,
@@ -54,7 +54,8 @@ net = BAST(
     dropout=DROPOUT,
     emb_dropout=EMB_DROPOUT,
     binaural_integration=BINAURAL_INTEGRATION,
-    share_params=SHARE_PARAMS
+    share_params=SHARE_PARAMS,
+    transformer_variant=MODEL_TYPE,
 )
 
 """Parallelize the network"""
@@ -103,6 +104,11 @@ min_val_loss = 10
 start_epoch = 0
 end_epoch = start_epoch + EPOCH
 
+model_save_name = MODEL_NAME + '_' + BINAURAL_INTEGRATION + '_' + LOSS + '_XY' + '_' + (
+    'SP' if SHARE_PARAMS else 'NSP') + '_' + MODEL_TYPE
+if DATA_ENV != 'RI':
+    model_save_name += '_' + DATA_ENV
+
 """Starting training"""
 print('[{}] Start training...'.format(datetime.now()))
 for epoch in range(start_epoch, end_epoch):
@@ -121,10 +127,16 @@ for epoch in range(start_epoch, end_epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        print('\r[{}] [TRAINING] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch, batch, loss_v, batch_loss / idx_e), end='')
+        print(
+            '\r[{}] [TRAINING] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch,
+                                                                                                 batch, loss_v,
+                                                                                                 batch_loss / idx_e),
+            end='')
     avg_batch_loss = batch_loss / num_tr
     tr_loss.append(avg_batch_loss)
-    print('\r[{}] [TRAINING] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch, batch, loss_v, avg_batch_loss))
+    print('\r[{}] [TRAINING] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch,
+                                                                                               batch, loss_v,
+                                                                                               avg_batch_loss))
 
     batch_loss_val = 0
     with torch.no_grad():
@@ -139,10 +151,17 @@ for epoch in range(start_epoch, end_epoch):
             loss = criterion(output, target)
             loss_v = loss.item()
             batch_loss_val += loss_v * (idx_e - idx_s)
-            print('\r[{}] [VALIDATION] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch, batch, loss_v, batch_loss_val / idx_e), end='')
+            print('\r[{}] [VALIDATION] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(),
+                                                                                                         epoch, batch,
+                                                                                                         loss_v,
+                                                                                                         batch_loss_val / idx_e),
+                  end='')
         avg_batch_loss_val = batch_loss_val / num_val
         val_loss.append(avg_batch_loss_val)
-        print('\r[{}] [VALIDATION] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(), epoch, batch, loss_v, avg_batch_loss_val))
+        print('\r[{}] [VALIDATION] Epoch: {}, Batch: {}, Curr Loss: {:.6f}, Avg Loss: {:.6f}'.format(datetime.now(),
+                                                                                                     epoch, batch,
+                                                                                                     loss_v,
+                                                                                                     avg_batch_loss_val))
         print(tr_loss)
         print(val_loss)
 
@@ -154,7 +173,7 @@ for epoch in range(start_epoch, end_epoch):
                     'log': {'training': tr_loss,
                             'validation': val_loss},
                     'conf': conf},
-                   MODEL_SAVE + MODEL_NAME + '_' + BINAURAL_INTEGRATION + '_' + LOSS + '_XY' + '_' + ('SP' if SHARE_PARAMS else 'NSP') + '_best.pkl')
+                   MODEL_SAVE + model_save_name + '_best.pkl')
 
     # Save the last network
     torch.save({'epoch': epoch, 'state_dict': net.module.state_dict(), 'best_loss': min_val_loss,
@@ -162,6 +181,5 @@ for epoch in range(start_epoch, end_epoch):
                 'log': {'training': tr_loss,
                         'validation': val_loss},
                 'conf': conf},
-               MODEL_SAVE + MODEL_NAME + '_' + BINAURAL_INTEGRATION + '_' + LOSS + '_XY' + '_' + ('SP' if SHARE_PARAMS else 'NSP') + '_last.pkl')
-
+               MODEL_SAVE + model_save_name + '_last.pkl')
 sys.exit()
