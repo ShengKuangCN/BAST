@@ -1,6 +1,6 @@
 # BAST
 
-[BAST: Binaural Audio Spectrogram Transformer for Binaural Sound Localization]()
+[BAST-Mamba: Binaural Audio Spectrogram Mamba Transformer for Binaural Sound Localization]()
 ---
 ## Architecture
 
