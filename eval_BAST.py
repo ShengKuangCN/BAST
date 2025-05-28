@@ -1,3 +1,6 @@
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 import torch
 import torch.nn as nn
 import pandas as pd
@@ -7,12 +10,12 @@ import sys
 import os
 
 sys.path.append(os.getcwd())
-from network.BAST import BAST, AngularLossWithCartesianCoordinate
+from network.BAST import BAST, BAST_Variant, AngularLossWithCartesianCoordinate
 from utils import *
 from conf import *
 
 parser = argparse.ArgumentParser()
-# parser.add_argument("-m", "--model", help="model name, BAST..")
+parser.add_argument("-b", "--backbone", help="mamba/vanilla/swin")
 parser.add_argument("-i", "--integ", help="SUB/ADD/CONCAT")
 parser.add_argument("-l", "--loss", help="MSE/AD/MIN")
 parser.add_argument("-s", "--shareweights", help="Share weights", type=bool, default=False)
@@ -20,48 +23,37 @@ parser.add_argument("-e", "--env", help="RI/RI01/RI02")
 args = parser.parse_args()
 
 
-def plot_training_loss(training_loss, validation_loss, validation_dice=None, fig_path=None):
-    fig, ax = plt.subplots()
-    epochs = range(len(validation_loss))
-    ax.plot(epochs[::1], training_loss[::1], label='Train loss')
-    ax.plot(epochs[::1], validation_loss[::1], label='Val loss')
-    if validation_dice:
-        ax.plot(epochs[::1], validation_dice[::1], 'r', label='Val dice')
 
-    plt.title('Loss trend')
-    plt.ylabel('Loss')
-    plt.xlabel('Number of Epochs')
-    plt.ylim([0, 1])
-    plt.legend(loc=1)
-    if fig_path:
-        plt.savefig(fig_path)
-    else:
-        plt.show()
-
-
-model_name = 'BAST_{}_{}_XY_{}'.format(args.integ, args.loss, 'SP' if args.shareweights else 'NSP')  # 'BAST_SUB_MIX_XY_NSP'  #args.modelname
-DATA_ENV = args.env  # 'RI'
+BINAURAL_INTEGRATION = args.integ
+LOSS = args.loss  # MSE AD MIX
+SHARE_PARAMS = args.shareweights  # True False
+MODEL_DATA_ENV = args.env
+MODEL_NAME = 'BAST'  # BAST AudLocViT
+MODEL_TYPE = args.backbone
+model_name = '{}_{}_{}_XY_{}_{}'.format(MODEL_NAME, BINAURAL_INTEGRATION, LOSS, 'SP' if SHARE_PARAMS else 'NSP', MODEL_TYPE)  # 'BAST_SUB_MIX_XY_NSP'  #args.modelname
+TEST_DATA_ENV = args.env
 # model_name = 'BAST_SUB_MIX_XY_NSP'  # SUB ADD CONCAT   MSE MIX AD   NSP  AudLocViT
-# DATA_ENV = 'RI'  # RI RI01 RI02
+# DATA_ENV = 'RI'  # RI RI01 RI02 RI_SNR_40
 
-
+if MODEL_DATA_ENV != 'RI':
+    model_name += '_' + MODEL_DATA_ENV
 model_path = MODEL_SAVE + '{}_best.pkl'.format(model_name)
+print('load model', model_path)
 fig1_path = FIG_PATH + '{}_AD.pdf'.format(model_name)
 fig2_path = FIG_PATH + '{}_DISTRIBUTION.pdf'.format(model_name)
-if DATA_ENV in ['RI01', 'RI02']:
-    model_name += '_' + DATA_ENV
+
 eval_path = EVAL_PATH + '{}.npy'.format(model_name)
-model_dict = torch.load(model_path)
+model_dict = torch.load(model_path, weights_only=False)
 conf = model_dict['conf']
-conf['BATCH_SIZE'] = 20 if 'CONCAT' not in model_name else 15
+conf['BATCH_SIZE'] = 20 if 'CONCAT' not in model_name else 40
 
 # Load validation and testing data based on designated conf (not from configs.py)
-te_x, te_y = load_dataset(DATA_ENV, train=False, raw_path=DATA_DIR, converted_path=CONVERTED_DATA_DIR)
+te_x, te_y = load_dataset(TEST_DATA_ENV, train=False, raw_path=DATA_DIR, converted_path=CONVERTED_DATA_DIR)
 te_x = norm_image(te_x)
 te_x = torch.Tensor(te_x)
 te_y = torch.Tensor(te_y)
 
-net = BAST(
+net = BAST_Variant(
     image_size=conf['SPECTROGRAM_SIZE'],
     patch_size=conf['PATCH_SIZE'],
     patch_overlap=conf['PATCH_OVERLAP'],  # conf['PATCH_SIZE'] - conf['PATCH_OVERLAP']
@@ -76,8 +68,10 @@ net = BAST(
     dropout=conf['DROPOUT'],
     emb_dropout=conf['EMB_DROPOUT'],
     binaural_integration=conf['BINAURAL_INTEGRATION'],
-    share_params=conf['SHARE_PARAMS']
+    share_params=conf['SHARE_PARAMS'],
+    transformer_variant=MODEL_TYPE,
 )
+
 
 if GPU_LIST:
     net = nn.DataParallel(net, device_ids=GPU_LIST).cuda()
@@ -128,8 +122,10 @@ dot_product = np.clip(np.sum(te_pred_norm * te_y_norm, axis=1), -1, 1)
 angle_diff = np.arccos(dot_product)
 deg_diff = np.rad2deg(angle_diff)
 
+print(model_name)
 print('MSE: ', avg_batch_loss_te, np.mean(mse))
 print('AD: ', np.mean(deg_diff))
+
 
 # plot mean angular error
 
@@ -195,3 +191,4 @@ ax2.set_thetagrids(np.arange(-180, 180, 10))
 
 plt.show()
 plt.savefig(fig2_path)
+
